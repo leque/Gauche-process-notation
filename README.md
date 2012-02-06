@@ -62,7 +62,7 @@ the subprocess's stdout.
 Returns immediately after forking subprocess.
 
 ### Syntax: run/port->list reader pf redirects ...
-Same as `(port->list reader (run/port pf redirects ...))`.
+Equivalent to `(port->list reader (run/port pf redirects ...))`.
 Returns when the port reaches at eof.
 
 ### Syntax: run/file pf redirects ...
@@ -71,19 +71,19 @@ and returns the name of the temporary file.
 Returns when the subprocess exits.
 
 ### Syntax: run/string pf redirects ...
-Same as `(port->string (run/port pf redirects ...))`.
+Equivalent to `(port->string (run/port pf redirects ...))`.
 Returns when the port reaches at eof.
 
 ### Syntax: run/strings pf redirects ...
-Same as `(run/port->list read-line pf redirects ...)`.
+Equivalent to `(run/port->list read-line pf redirects ...)`.
 Returns when the port reaches at eof.
 
 ### Syntax: run/sexp pf redirects ...
-Same as `(read (run/port pf redirects ...))`.
+Equivalent to `(read (run/port pf redirects ...))`.
 Returns when `read` completes.
 
 ### Syntax: run/sexps pf redirects ...
-Same as `(run/port->list read pf redirects ...)`.
+Equivalent to `(run/port->list read pf redirects ...)`.
 Returns when the port reaches at eof.
 
 ### Syntax: run/port+proc pf redirects ...
@@ -103,7 +103,7 @@ For example, `run/port` is equivalent to
 Runs a subprocess, redirects its output file descriptor `fds` ... to
 temporary files, and returns multiple-values:
 the exit status of the subprocess and input ports on the temporary files.
-Returns immediately after forking subprocess.
+Returns when the subprocess exits.
 
 ### Syntax: && (% pf redirects ...) ...
 ### Syntax: || (% pf redirects ...) ...
