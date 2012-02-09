@@ -5,6 +5,29 @@ Gauche-process-notation is a process notation library a la
 This library is a thin wrapper to `run-process` procedure in
 `gauche.process` module.
 
+## Examples
+
+    (use process.notation)
+
+    ;;; download files
+    (use srfi-1)
+
+    (% (wget ,@(map (pa$ format "http://www.example.com/img/~D.jpg")
+                    (iota 10 1))))
+
+    ;;; classical word frequency analysis
+    (define freqs
+      (map (lambda (s)
+             (call-with-input-string s (cut port->list read <>)))
+           (run/strings (^ ((wget -O - "http://example.org/licenses/gpl.txt")
+                            :error :null)
+                          (tr -c "A-Za-z" "\n")
+                          (tr "A-Z" "a-z")
+                          (grep -v "^$")
+                          (sort)
+                          (uniq -c)
+                          (sort -rn)))))
+
 ## API
 ### Syntax: ! pf redirects ...
 ### Syntax: & pf redirects ...
