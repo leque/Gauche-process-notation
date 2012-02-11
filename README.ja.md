@@ -101,13 +101,6 @@ process form `pf` で指定された Unix プロセスを起動する。
 子プロセスを起動し、その子プロセスの標準出力に接続した入力ポートと、
 `<process>` オブジェクトとの二値を返す。
 
-### Syntax: run/ proc pf redirects ...
-`run/`* 構文の汎化版。 `(& pf redirects ...)` の返すプロセスオブジェクトに
-`proc` を適用し、その戻り値を返す。
-
-例えば、 `run/port` は `(run/ process-output pf (> stdout) redirects ...)`
-と同じである。
-
 ### Syntax: run/collecting (fds ...) pf redirects ...
 子プロセスを起動してその出力ファイルディスクリプタ `fds` ... を
 一時ファイルにリダイレクトし、 `<process>` オブジェクトと、その一時ファイルを

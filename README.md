@@ -114,14 +114,6 @@ Runs a subprocess, and returns two values: an input port connected to
 the subprocess's stdout, and its `<process>` object.
 Returns immediately after forking subprocess.
 
-### Syntax: run/ proc pf redirects ...
-Generalized variant of `run/`*s.
-Forks a subprocess with `(& pf redirects ...)`,
-and applies `proc` to resulting `<process>` object.
-
-For example, `run/port` is equivalent to
-`(run/ process-output pf (> stdout) redirects ...)`.
-
 ### Syntax: run/collecting (fds ...) pf redirects ...
 Runs a subprocess, redirects its output file descriptor `fds` ... to
 temporary files, and returns multiple-values:

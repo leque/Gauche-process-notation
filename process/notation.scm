@@ -1,6 +1,6 @@
 (define-module process.notation
   (export ! & % run && ||
-          run/ run/port run/port->list run/file
+          run/port run/port->list run/file
           run/string run/strings run/sexp run/sexps
           run/port+proc run/collecting)
   (use srfi-11)
@@ -78,19 +78,12 @@
     ((_ pf redirects ...)
      (%run #t pf (redirects ...)))))
 
-(define-syntax run/
-  (syntax-rules ()
-    ((_ proc pf redirects ...)
-     (let ((p (& pf redirects ...)))
-       (proc p)))))
-
 (define-syntax %
   (syntax-rules ()
     ((_ pf redirects ...)
-     (run/ (lambda (p)
-             (and (process-wait p)
-                  (process-exit-status p)))
-           pf redirects ...))))
+     (let ((p (& pf redirects ...)))
+       (and (process-wait p)
+            (process-exit-status p))))))
 
 (define-syntax run
   (syntax-rules ()
@@ -100,7 +93,7 @@
 (define-syntax run/port
   (syntax-rules ()
     ((_ pf redirects ...)
-     (run/ process-output pf (> stdout) redirects ...))))
+     (process-output (& pf (> stdout) redirects ...)))))
 
 (define-syntax run/port->list
   (syntax-rules ()
@@ -113,13 +106,10 @@
      (receive (out name) (sys-mkstemp
                           (build-path (temporary-directory)
                                       "gauche.process.out."))
-       (run/ (lambda (p)
-               (process-wait p)
-               (close-output-port out)
-               name)
-             pf
-             (> ,out)
-             redirects ...)))))
+       (let ((p (& pf (> ,out) redirects ...)))
+         (process-wait p)
+         (close-output-port out)
+         name)))))
 
 (define-syntax run/string
   (syntax-rules ()
@@ -144,10 +134,9 @@
 (define-syntax run/port+proc
   (syntax-rules ()
     ((_ pf redirects ...)
-     (run/ (lambda (p)
-             (values (process-output p)
-                     p))
-           pf (> stdout) redirects ...))))
+     (let ((p (& pf (> stdout) redirects ...)))
+       (values (process-output p)
+               p)))))
 
 (define-syntax run/collecting
   (syntax-rules ()
@@ -162,16 +151,13 @@
                                    (temporary-directory)
                                    (format "gauche.process.out.fd.~A." fds))))
                   ...)
-       (run/ (lambda (p)
-               (process-wait p)
-               (close-output-port ports)
-               ...
-               (values (process-exit-status p)
-                       (open-input-file names)
-                       ...))
-             pf
-             (> fds ,names) ...
-             redirects ...)))
+       (let ((p (& pf (> fds ,names) ... redirects ...)))
+         (process-wait p)
+         (close-output-port ports)
+         ...
+         (values (process-exit-status p)
+                 (open-input-file names)
+                 ...))))
     ((_ (fd . rest) (fds ...) (ports ...) (names ...) pf redirects ...)
      (%run/collecting rest
                       (fds ... fd)
