@@ -1,0 +1,163 @@
+(define-module process.notation
+  (export exec run& run && ||
+          run/port run/port->list run/file
+          run/string run/strings run/sexp run/sexps
+          run/port+proc run/collecting)
+  (use srfi-11)
+  (use gauche.process)
+  (use gauche.collection)
+  (use file.util)
+  (use util.match))
+
+(select-module process.notation)
+
+(define (input-redirect? x)
+  (memq x '(< << <<< <&)))
+(define (output-redirect? x)
+  (memq x '(> >> >&)))
+
+(define (normalize-redirect r)
+  (match r
+    (((? input-redirect? sym) src)
+     `(,sym 0 ,src))
+    (((? output-redirect? sym) sink)
+     `(,sym 1 ,sink))
+    (_ r)))
+
+(define (split-redirects rs)
+  (fold2 (rec (retry r ins outs)
+           (match r
+             (((? input-redirect?) _fd _src)
+              (values (cons r ins) outs))
+             (((? output-redirect?) _fd _sink)
+              (values ins (cons r outs)))
+             (_
+              (error "invalid redirection: " r))))
+         '() '()
+         rs))
+
+(define (%run fork pf redirects)
+  (receive (ins outs) (split-redirects (map normalize-redirect redirects))
+    (%%run fork pf ins outs)))
+
+(define (%%run fork? pf ins outs)
+  (define (split-pf xs)
+    (fold3 (lambda (x cmd&args keys redirs)
+             (match x
+               (((? keyword?) arg)
+                (values cmd&args (append! x keys) redirs))
+               (((? symbol?) . rest)
+                (values cmd&args keys (cons (normalize-redirect x) redirs)))
+               (_
+                (values (cons x cmd&args) keys redirs))))
+           '() '() '()
+           (reverse xs)))
+  (match pf
+    (('^)
+     (error "empty pipeline"))
+    (('^ pf1)
+     (%%run fork? pf1 ins outs))
+    (('^ pf1 . rest)
+     (let ((p (%%run #t pf1 ins '((> 1 stdout)))))
+       (%%run fork? `(^ ,@rest) `((< 0 ,(process-output p))) outs)))
+    (_
+     (receive (cmd&args keys redirects) (split-pf pf)
+       (let-keywords keys ((error #f)
+                           (directory #f)
+                           (sigmask #f)
+                           (detached #f)
+                           (host #f))
+         (run-process cmd&args
+                      :error error
+                      :directory directory
+                      :sigmask sigmask
+                      :detached detached
+                      :host host
+                      :redirects (append ins outs redirects)
+                      :fork fork?
+                      :wait #f))))))
+
+(define (exec pf . redirects)
+  (%run #f pf redirects))
+
+(define (run& pf . redirects)
+  (%run #t pf redirects))
+
+(define (run pf . redirects)
+  (let ((p (apply run& pf redirects)))
+    (process-wait p)
+    (process-exit-status p)))
+
+(define (run/port pf . redirects)
+  (let ((p (apply run& pf '(> 1 stdout) redirects)))
+    (process-output p)))
+
+(define (run/port->list reader pf . redirects)
+  (port->list reader (apply run/port pf redirects)))
+
+(define (run/file pf . redirects)
+  (receive (out name) (sys-mkstemp
+                       (build-path (temporary-directory)
+                                   "gauche.process.out."))
+    (let ((p (apply run& pf `(> ,out) redirects)))
+      (process-wait p)
+      (close-output-port out)
+      name)))
+
+(define (run/string pf . redirects)
+  (port->string (apply run/port pf redirects)))
+
+(define (run/strings pf . redirects)
+  (apply run/port->list read-line pf redirects))
+
+(define (run/sexp pf . redirects)
+  (read (apply run/port pf redirects)))
+
+(define (run/sexps pf . redirects)
+  (apply run/port->list read pf redirects))
+
+(define (run/port+proc pf . redirects)
+  (let ((p (apply run& pf '(> stdout) redirects)))
+    (values (process-output p)
+            p)))
+
+(define (run/collecting fds pf . redirects)
+  (let* ((ports&names (map (lambda (fd)
+                             (receive port&name
+                                 (sys-mkstemp
+                                  (build-path
+                                   (temporary-directory)
+                                   (format "gauche.process.out.fd.~A" fd)))
+                               port&name))
+                           fds))
+         (ports (map car ports&names))
+         (redirs (map (lambda (fd port)
+                        `(> ,fd ,port))
+                      fds ports))
+         (names (map cadr ports&names))
+         (p (apply run& pf (append redirs redirects))))
+    (process-wait p)
+    (for-each close-output-port ports)
+    (apply values
+           (process-exit-status p)
+           (map open-input-file names))))
+
+(define (exit-success? st)
+  (zero? (sys-wait-exit-status st)))
+
+(define-syntax ?
+  (syntax-rules (run)
+    ((_ (run pf redirects ...))
+     (exit-success? (run pf redirects ...)))
+    ((_ pf)
+     (? (run pf)))))
+
+(define-syntax &&
+  (syntax-rules ()
+    ((_ pf  ...)
+     (and (? pf) ...))))
+
+(define-syntax ||
+  (syntax-rules ()
+    ((_ pf  ...)
+     (or (? pf) ...))))
