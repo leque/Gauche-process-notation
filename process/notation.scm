@@ -151,7 +151,7 @@
                                    (temporary-directory)
                                    (format "gauche.process.out.fd.~A." fds))))
                   ...)
-       (let ((p (& pf (> fds ,names) ... redirects ...)))
+       (let ((p (& pf (> fds ,ports) ... redirects ...)))
          (process-wait p)
          (close-output-port ports)
          ...
