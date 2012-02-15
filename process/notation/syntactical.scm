@@ -1,4 +1,4 @@
-(define-module process.notation
+(define-module process.notation.syntactical
   (export ! & % run && ||
           run/port run/port->list run/file
           run/string run/strings run/sexp run/sexps
@@ -9,7 +9,7 @@
   (use file.util)
   (use util.match))
 
-(select-module process.notation)
+(select-module process.notation.syntactical)
 
 (define (split-redirects rs)
   (define (input-redirect? x)

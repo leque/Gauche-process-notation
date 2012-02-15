@@ -2,10 +2,10 @@
 (use srfi-1)
 (use gauche.process)
 
-(test-start "process.notation")
+(test-start "process.notation.syntactical")
 
-(use process.notation)
-(test-module 'process.notation)
+(use process.notation.syntactical)
+(test-module 'process.notation.syntactical)
 
 ;; ----------------------------------------------------------------------
 (test-section "&, %")
