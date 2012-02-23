@@ -10,49 +10,54 @@
     ;;; download files
     (use srfi-1)
 
-    (% (wget ,@(map (pa$ format "http://www.example.com/img/~D.jpg")
-                    (iota 10 1))))
+    (run `(wget ,@(map (pa$ format "http://www.example.com/img/~D.jpg")
+                       (iota 10 1))))
 
     ;;; classical word frequency analysis
     (define freqs
       (map (lambda (s)
              (call-with-input-string s (cut port->list read <>)))
-           (run/strings (^ ((wget -O - "http://example.org/licenses/gpl.txt")
-                            :error :null)
-                          (tr -c "A-Za-z" "\n")
-                          (tr "A-Z" "a-z")
-                          (grep -v "^$")
-                          (sort)
-                          (uniq -c)
-                          (sort -rn)))))
+           (run/strings '(^ (wget -O - "http://example.org/licenses/gpl.txt"
+                                  (:error :null))
+                           (tr -c "A-Za-z" "\n")
+                           (tr "A-Z" "a-z")
+                           (grep -v "^$")
+                           (sort)
+                           (uniq -c)
+                           (sort -rn)))))
 
 ## API
-### Syntax: ! pf redirects ...
-### Syntax: & pf redirects ...
-### Syntax: % pf redirects ...
-### Auxiliary syntax: ^
+### Module: process.notation
+#### Procedure: exec pf redirects ...
+#### Procedure: run& pf redirects ...
+#### Procedure: run pf redirects ...
 process form `pf` で指定された Unix プロセスを起動する。
-`&` はサブプロセスを `fork` し、 `<process>` オブジェクトを返す。
-`!` は `exec` して返らない。 `%` は起動したプロセスを
+`run&` はサブプロセスを `fork` し、 `<process>` オブジェクトを返す。
+`exec` は `sys-exec` して返らない。 `run` は起動したプロセスを
 `process-wait` し、 `process-exit-status` した結果を返す。
 
 `pf` の構文は以下の通り。
 
-    pf ::= (cmd args ...)
-         | ((cmd args ...) :key error directory sigmask detached host)
+    pf ::= (cmd-elems ...)
          | (^ pf0 pf1 ...)
 
-最初の形式は `run-process` の第一引き数と同じ形式で起動するコマンドとその引き数を
-指定する。
+    cmd-elems ::= iospec
+                | keyword-arg
+                | obj
 
-次の形式では、それに加えて `run-process` のキーワード引き数をいくつか指定できる。
+    iospec ::= (symbol . rest)
 
-以上のふたつの形式で、 `(cmd args ...)` の部分は暗黙に `quasiquote` される。
-値を評価したい場合には `unquote` や `unquote-splicing` を使う。
+    keyword-arg ::= (key . rest)
 
-最後の形式はパイプラインで、各 `pf` をパイプでつなぐ。 `^` という記号は
+    key ::= :error | :directory | :host | :sigmask | :detached
+
+最初の形式ではコマンドとその引き数、リダイレクト、 `run-process` 手続きへの
+キーワード引き数を指定する。 `iospec` は `run-process` 手続きの
+`:redirects` 引き数になり、 `keyword-arg` はキーワード引き数になる。
+それらをリストから取り除いたものが `run-process` の `cmd&args` 引き数になる。
+
+二番目の形式はパイプラインで、各 `pf` をパイプでつなぐ。 `^` という記号は
 [Thompson shell](http://en.wikipedia.org/wiki/Thompson_shell) から取った。
-`^` は `gauche` モジュールで `lambda` の別名として束縛されているものを参照している。
 
 `redirects` には `gauche.process` の `run-process` 手続きの `:redirects` と
 同じ形式で入出力リダイレクトを指定できる。また、この構文の拡張として入出力リダイレクトの
@@ -61,61 +66,56 @@ process form `pf` で指定された Unix プロセスを起動する。
 `>`、 `>>`、 `>&` では `1` を指定したものとして扱う。例えば、 `(< "file")` は
 `(< 0 "file")` と同じであり、 `(> :null)` は `(> 1 :null)` と同じである。
 
-`redirects` は暗黙に `quasiquote` される。
-
 `pf` がパイプラインを表す場合には、 `redirects` の入力指定はパイプの左端の
 プロセスへの入力の指定になり、出力指定は右端のプロセスへの出力指定になる。
 
-### Syntax: run pf redirects ...
-`%` の別名
-
-### Syntax: run/port pf redirects ...
+#### Procedure: run/port pf redirects ...
 子プロセスを起動し、その子プロセスの標準出力に接続した入力ポートを返す。
 子プロセスを起動したら即座に返る。
 
-### Syntax: run/port->list reader pf redirects ...
+#### Procedure: run/port->list reader pf redirects ...
 `(port->list reader (run/port pf redirects ...))` に同じ。
 ポートが eof に到達した時点で返る。
 
-### Syntax: run/file pf redirects ...
+#### Procedure: run/file pf redirects ...
 `pf` の標準出力を一時ファイルにリダイレクトし、 その一時ファイルの名前を返す。
 子プロセスが終了した時点で返る。
 
-### Syntax: run/string pf redirects ...
+#### Procedure: run/string pf redirects ...
 `(port->string (run/port pf redirects ...))` に同じ。
 ポートが eof に到達した時点で返る。
 
-### Syntax: run/strings pf redirects ...
+#### Procedure: run/strings pf redirects ...
 `(run/port->list read-line pf redirects ...)` に同じ。
 ポートが eof に到達した時点で返る。
 
-### Syntax: run/sexp pf redirects ...
+#### Procedure: run/sexp pf redirects ...
 `(read (run/port pf redirects ...))` に同じ。
 オブジェクトをひとつ読み込んだ時点で返る。
 
-### Syntax: run/sexps pf redirects ...
+#### Procedure: run/sexps pf redirects ...
 `(run/port->list read pf redirects ...)` に同じ。
 ポートが eof に到達した時点で返る。
 
-### Syntax: run/port+proc pf redirects ...
+#### Procedure: run/port+proc pf redirects ...
 子プロセスを起動し、その子プロセスの標準出力に接続した入力ポートと、
 `<process>` オブジェクトとの二値を返す。
 
-### Syntax: run/collecting (fds ...) pf redirects ...
-子プロセスを起動してその出力ファイルディスクリプタ `fds` ... を
+#### Procedure: run/collecting fds pf redirects ...
+子プロセスを起動してその出力ファイルディスクリプタのうちリスト `fds` で指定されたものを
 一時ファイルにリダイレクトし、 `<process>` オブジェクトと、その一時ファイルを
 読み込むための入力ポートを多値として返す。
 子プロセスが終了した時点で返る。
 
-### Syntax: && (% pf redirects ...) ...
-### Syntax: || (% pf redirects ...) ...
-### Syntax: && pf ...
-### Syntax: || pf ...
-### Auxiliary syntax: %
+#### Syntax: && (run pf redirects ...) ...
+#### Syntax: || (run pf redirects ...) ...
+#### Syntax: && pf ...
+#### Syntax: || pf ...
+#### Auxiliary syntax: run
 シェルの `&&` と `||` に対応する。
 
 `&&` は各 `pf` を左から順に実行し、いずれかの `pf` が異常終了した時点
-（`(sys-wait-exit-status (% pf redirects ...))` ≠ `0` の時点）で `#f` を返す。
+（`(sys-wait-exit-status (run pf redirects ...))` ≠ `0` の時点）で `#f` を返す。
 このとき、残りの式は評価されない。すべての `pf` が正常終了した場合には `#t` を返す。
 `pf` ... が空の場合には `#t` を返す。
 
@@ -124,4 +124,32 @@ process form `pf` で指定された Unix プロセスを起動する。
 `pf` ... が空の場合には `#f` を返す。
 
 `redirects` ... を指定しない場合には、簡略構文として外側の
-`(% _ redirecsts ...)` を省略できる。
+`(run ...)` を省略できる。
+
+### Module: process.notation.syntactical
+このモジュールでは `process.notation` モジュールの手続きの構文版を提供する。
+
+これらの構文では `pf` や `redirecs` は暗黙に `quasiquote` される。
+サブフォームを評価したい場合には `unquote` や `unquote-splicing` を使う。
+
+また、これらの構文は衛生的なマクロとして定義されている。
+パイプラインを表す識別子 `^` は `gauche` モジュールで束縛されているものと同じである。
+
+#### Syntax: exec pf redirects ...
+#### Syntax: run& pf redirects ...
+#### Syntax: run pf redirects ...
+#### Auxiliary syntax: ^
+#### Syntax: run/port pf redirects ...
+#### Syntax: run/port->list reader pf redirects ...
+#### Syntax: run/file pf redirects ...
+#### Syntax: run/string pf redirects ...
+#### Syntax: run/strings pf redirects ...
+#### Syntax: run/sexp pf redirects ...
+#### Syntax: run/sexps pf redirects ...
+#### Syntax: run/port+proc pf redirects ...
+#### Syntax: run/collecting (fds ...) pf redirects ...
+#### Syntax: && (run pf redirects ...) ...
+#### Syntax: || (run pf redirects ...) ...
+#### Syntax: && pf ...
+#### Syntax: || pf ...
+#### Auxiliary syntax: run
