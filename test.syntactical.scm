@@ -8,18 +8,17 @@
 (test-module 'process.notation.syntactical)
 
 ;; ----------------------------------------------------------------------
-(test-section "&, %")
+(test-section "run&, run")
 
-(test* "& returns <process>" #t (process? (& (true))))
-(test* "% returns integer" #t (integer? (% (true))))
+(test* "run& returns <process>" #t (process? (run& (true))))
+(test* "run returns integer" #t (integer? (run (true))))
 
 (define-syntax test-invalid-keyword-argument
   (syntax-rules ()
     ((_ key arg)
-     (test* (format "invalid keyword to %: ~S" key)
+     (test* (format "invalid keyword to run: ~S" key)
             (test-error)
-            (% ((true)
-                key arg))))))
+            (run (true (key arg)))))))
 
 (test-invalid-keyword-argument :input "file")
 (test-invalid-keyword-argument :output "file")
@@ -117,9 +116,9 @@
   (test* "pipeline with redirects"
          (call-with-input-file "test/words" port->string)
          (begin
-           (% (^ (cat -n) (cut -f 2))
-              (< "test/words")
-              (> ,file))
+           (run (^ (cat -n) (cut -f 2))
+                (< "test/words")
+                (> ,file))
            (call-with-input-file file port->string))))
 
 (test* "run/port+proc"
@@ -157,8 +156,8 @@
 
 (test* ":directory"
        (call-with-input-file "test/words" port->string)
-       (run/string ((cat words)
-                    :directory "test")))
+       (run/string (cat words
+                        (:directory "test"))))
 
 (test* "port/string discards fd/2"
        "foo\n"
@@ -174,9 +173,9 @@
        (let ((name 'stderr))
          (port->string
           (process-output
-           (& ((echo foo)
-               :error name)
-              (>& 1 2))
+           (run& (echo foo
+                       (:error ,name))
+                 (>& 1 2))
            name))))
 
 (let ((file "test/words"))
@@ -192,14 +191,14 @@
   (test* ">"
          "ab\n"
          (begin
-          (% (echo ab)
-             (> ,file))
-          (call-with-input-file file port->string)))
+           (run (echo ab)
+                (> ,file))
+           (call-with-input-file file port->string)))
   (test* ">>"
          "ab\ncd\n"
          (begin
-           (% (echo cd)
-              (>> ,file))
+           (run (echo cd)
+                (>> ,file))
            (call-with-input-file file port->string))))
 
 (let ((str "abc"))
@@ -227,47 +226,47 @@
      (test* (format "~S" 'expr) exp expr))))
 
 (test-cond #t (&&))
-(test-cond #t (&& (% (true))))
-(test-cond #f (&& (% (false))))
-(test-cond #f (&& (% (false)) (% (false))))
-(test-cond #f (&& (% (false)) (% (true))))
-(test-cond #f (&& (% (true)) (% (false))))
-(test-cond #t (&& (% (true)) (% (true))))
+(test-cond #t (&& (run (true))))
+(test-cond #f (&& (run (false))))
+(test-cond #f (&& (run (false)) (run (false))))
+(test-cond #f (&& (run (false)) (run (true))))
+(test-cond #f (&& (run (true)) (run (false))))
+(test-cond #t (&& (run (true)) (run (true))))
 
 (test* "&& (shorthand)"
-       (&& (% (true)) (% (false)))
+       (&& (run (true)) (run (false)))
        (&& (true) (false)))
 
 (let ((file "test/output"))
   (test* "&& (short circuit)"
          "ab\n"
          (begin
-           (&& (% (test/echofail ab)
-                  (> ,file))
-               (% (echo cd)
-                  (>> ,file)))
+           (&& (run (test/echofail ab)
+                    (> ,file))
+               (run (echo cd)
+                    (>> ,file)))
            (call-with-input-file file port->string))))
 
 (test-cond #f (||))
-(test-cond #t (|| (% (true))))
-(test-cond #f (|| (% (false))))
-(test-cond #f (|| (% (false)) (% (false))))
-(test-cond #t (|| (% (false)) (% (true))))
-(test-cond #t (|| (% (true)) (% (false))))
-(test-cond #t (|| (% (true)) (% (true))))
+(test-cond #t (|| (run (true))))
+(test-cond #f (|| (run (false))))
+(test-cond #f (|| (run (false)) (run (false))))
+(test-cond #t (|| (run (false)) (run (true))))
+(test-cond #t (|| (run (true)) (run (false))))
+(test-cond #t (|| (run (true)) (run (true))))
 
 (test* "|| (shorthand)"
-       (|| (% (false)) (% (true)))
+       (|| (run (false)) (run (true)))
        (|| (false) (true)))
 
 (let ((file "test/output"))
   (test* "|| (short circuit)"
          "ab\n"
          (begin
-           (|| (% (echo ab)
-                  (> ,file))
-               (% (echo cd)
-                  (>> ,file)))
+           (|| (run (echo ab)
+                    (> ,file))
+               (run (echo cd)
+                    (>> ,file)))
            (call-with-input-file file port->string))))
 
 (test-end)

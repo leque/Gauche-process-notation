@@ -1,5 +1,5 @@
 (define-module process.notation.syntactical
-  (export ! & % run && ||
+  (export exec run& run && ||
           run/port run/port->list run/file
           run/string run/strings run/sexp run/sexps
           run/port+proc run/collecting)
@@ -11,30 +11,48 @@
 
 (select-module process.notation.syntactical)
 
+(define (input-redirect? x)
+  (memq x '(< << <<< <&)))
+(define (output-redirect? x)
+  (memq x '(> >> >&)))
+
+(define (normalize-redirect r)
+  (match r
+    (((? input-redirect? sym) src)
+     `(,sym 0 ,src))
+    (((? output-redirect? sym) sink)
+     `(,sym 1 ,sink))
+    (_ r)))
+
 (define (split-redirects rs)
-  (define (input-redirect? x)
-    (memq x '(< << <<< <&)))
-  (define (output-redirect? x)
-    (memq x '(> >> >&)))
   (fold2 (rec (retry r ins outs)
            (match r
              (((? input-redirect?) _fd _src)
               (values (cons r ins) outs))
              (((? output-redirect?) _fd _sink)
               (values ins (cons r outs)))
-             (((? input-redirect? sym) src)
-              (retry `(,sym 0 ,src) ins outs))
-             (((? output-redirect? sym) sink)
-              (retry `(,sym 1 ,sink) ins outs))
              (_
               (error "invalid redirection: " r))))
          '() '()
          rs))
 
+(define (split-pf xs)
+  (fold3 (lambda (x cmd&args keys redirs)
+           (match x
+             (((? keyword?) arg)
+              (values cmd&args (append! x keys) redirs))
+             (((? symbol?) . rest)
+              (values cmd&args keys (cons (normalize-redirect x) redirs)))
+             (_
+              (values (cons x cmd&args) keys redirs))))
+         '() '() '()
+         (reverse xs)))
+
 (define-syntax %run
   (syntax-rules ()
     ((_ fork? pf (redirects ...))
-     (receive (ins outs) (split-redirects `(redirects ...))
+     (receive (ins outs) (split-redirects
+                          (map normalize-redirect `(redirects ...)))
        (%%run fork? pf ins outs)))))
 
 (define-syntax %%run
@@ -44,56 +62,47 @@
     ((_ fork? (^ pf1 pfs ...) ins outs)
      (let ((p (%%run #t pf1 ins '((> 1 stdout)))))
        (%%run fork? (^ pfs ...) `((< 0 ,(process-output p))) outs)))
-    ;; resolve syntax ambiguity
-    ((_ fork? (,cmd args ...) ins outs)
-     (%%run fork? ((,cmd args ...)) ins outs))
-    ((_ fork? (,@cmd args ...) ins outs)
-     (%%run fork? ((,@cmd args ...)) ins outs))
-    ((_ fork? ((cmd args ...) opts ...) ins outs)
-     (let-keywords (list opts ...) ((error #f)
-                                    (directory #f)
-                                    (sigmask #f)
-                                    (detached #f)
-                                    (host #f))
-       (run-process `(cmd args ...)
-                    :error error
-                    :directory directory
-                    :sigmask sigmask
-                    :detached detached
-                    :host host
-                    :redirects (append ins outs)
-                    :fork fork?
-                    :wait #f
-                    )))
+    ((_ fork? (cmd args ...) ins outs)
+     (receive (cmd&args keys redirects) (split-pf `(cmd args ...))
+       (let-keywords keys ((error #f)
+                           (directory #f)
+                           (sigmask #f)
+                           (detached #f)
+                           (host #f))
+         (run-process cmd&args
+                      :error error
+                      :directory directory
+                      :sigmask sigmask
+                      :detached detached
+                      :host host
+                      :redirects (append ins outs redirects)
+                      :fork fork?
+                      :wait #f
+                      ))))
     ((_ fork? (cmd args ...) ins outs)
      (%%run fork? ((cmd args ...)) ins outs))))
 
-(define-syntax !
+(define-syntax exec
   (syntax-rules ()
     ((_ pf redirects ...)
      (%run #f pf (redirects ...)))))
 
-(define-syntax &
+(define-syntax run&
   (syntax-rules ()
     ((_ pf redirects ...)
      (%run #t pf (redirects ...)))))
 
-(define-syntax %
-  (syntax-rules ()
-    ((_ pf redirects ...)
-     (let ((p (& pf redirects ...)))
-       (and (process-wait p)
-            (process-exit-status p))))))
-
 (define-syntax run
   (syntax-rules ()
     ((_ pf redirects ...)
-     (% pf redirects ...))))
+     (let ((p (run& pf redirects ...)))
+       (and (process-wait p)
+            (process-exit-status p))))))
 
 (define-syntax run/port
   (syntax-rules ()
     ((_ pf redirects ...)
-     (process-output (& pf (> stdout) redirects ...)))))
+     (process-output (run& pf (> stdout) redirects ...)))))
 
 (define-syntax run/port->list
   (syntax-rules ()
@@ -106,7 +115,7 @@
      (receive (out name) (sys-mkstemp
                           (build-path (temporary-directory)
                                       "gauche.process.out."))
-       (let ((p (& pf (> ,out) redirects ...)))
+       (let ((p (run& pf (> ,out) redirects ...)))
          (process-wait p)
          (close-output-port out)
          name)))))
@@ -134,7 +143,7 @@
 (define-syntax run/port+proc
   (syntax-rules ()
     ((_ pf redirects ...)
-     (let ((p (& pf (> stdout) redirects ...)))
+     (let ((p (run& pf (> stdout) redirects ...)))
        (values (process-output p)
                p)))))
 
@@ -151,7 +160,7 @@
                                    (temporary-directory)
                                    (format "gauche.process.out.fd.~A." fds))))
                   ...)
-       (let ((p (& pf (> fds ,ports) ... redirects ...)))
+       (let ((p (run& pf (> fds ,ports) ... redirects ...)))
          (process-wait p)
          (close-output-port ports)
          ...
@@ -169,11 +178,11 @@
   (zero? (sys-wait-exit-status st)))
 
 (define-syntax ?
-  (syntax-rules (%)
-    ((_ (% pf redirects ...))
-     (exit-success? (% pf redirects ...)))
+  (syntax-rules (run)
+    ((_ (run pf redirects ...))
+     (exit-success? (run pf redirects ...)))
     ((_ pf)
-     (? (% pf)))))
+     (? (run pf)))))
 
 (define-syntax &&
   (syntax-rules ()
