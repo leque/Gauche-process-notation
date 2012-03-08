@@ -5,48 +5,10 @@
           run/port+proc run/collecting)
   (use srfi-11)
   (use gauche.process)
-  (use gauche.collection)
   (use file.util)
-  (use util.match))
+  (use process.helper))
 
 (select-module process.notation.syntactical)
-
-(define (input-redirect? x)
-  (memq x '(< << <<< <&)))
-(define (output-redirect? x)
-  (memq x '(> >> >&)))
-
-(define (normalize-redirect r)
-  (match r
-    (((? input-redirect? sym) src)
-     `(,sym 0 ,src))
-    (((? output-redirect? sym) sink)
-     `(,sym 1 ,sink))
-    (_ r)))
-
-(define (split-redirects rs)
-  (fold2 (rec (retry r ins outs)
-           (match r
-             (((? input-redirect?) _fd _src)
-              (values (cons r ins) outs))
-             (((? output-redirect?) _fd _sink)
-              (values ins (cons r outs)))
-             (_
-              (error "invalid redirection: " r))))
-         '() '()
-         rs))
-
-(define (split-pf xs)
-  (fold3 (lambda (x cmd&args keys redirs)
-           (match x
-             (((? keyword?) arg)
-              (values cmd&args (append! x keys) redirs))
-             (((? symbol?) . rest)
-              (values cmd&args keys (cons (normalize-redirect x) redirs)))
-             (_
-              (values (cons x cmd&args) keys redirs))))
-         '() '() '()
-         (reverse xs)))
 
 (define-syntax %run
   (syntax-rules ()
@@ -107,7 +69,7 @@
 (define-syntax run/port->list
   (syntax-rules ()
     ((_ reader pf redirects ...)
-     (port->list reader (run/port pf redirects ...)))))
+     (call-with-port (run/port pf redirects ...) (cut port->list reader <>)))))
 
 (define-syntax run/file
   (syntax-rules ()
@@ -123,7 +85,7 @@
 (define-syntax run/string
   (syntax-rules ()
     ((_ pf redirects ...)
-     (port->string (run/port pf redirects ...)))))
+     (call-with-port (run/port pf redirects ...) port->string))))
 
 (define-syntax run/strings
   (syntax-rules ()
@@ -133,7 +95,7 @@
 (define-syntax run/sexp
   (syntax-rules ()
     ((_ pf redirects ...)
-     (read (run/port pf redirects ...)))))
+     (call-with-port (run/port pf redirects ...) read))))
 
 (define-syntax run/sexps
   (syntax-rules ()

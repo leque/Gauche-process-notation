@@ -5,53 +5,17 @@
           run/port+proc run/collecting)
   (use srfi-11)
   (use gauche.process)
-  (use gauche.collection)
   (use file.util)
-  (use util.match))
+  (use util.match)
+  (use process.helper))
 
 (select-module process.notation)
-
-(define (input-redirect? x)
-  (memq x '(< << <<< <&)))
-(define (output-redirect? x)
-  (memq x '(> >> >&)))
-
-(define (normalize-redirect r)
-  (match r
-    (((? input-redirect? sym) src)
-     `(,sym 0 ,src))
-    (((? output-redirect? sym) sink)
-     `(,sym 1 ,sink))
-    (_ r)))
-
-(define (split-redirects rs)
-  (fold2 (rec (retry r ins outs)
-           (match r
-             (((? input-redirect?) _fd _src)
-              (values (cons r ins) outs))
-             (((? output-redirect?) _fd _sink)
-              (values ins (cons r outs)))
-             (_
-              (error "invalid redirection: " r))))
-         '() '()
-         rs))
 
 (define (%run fork pf redirects)
   (receive (ins outs) (split-redirects (map normalize-redirect redirects))
     (%%run fork pf ins outs)))
 
 (define (%%run fork? pf ins outs)
-  (define (split-pf xs)
-    (fold3 (lambda (x cmd&args keys redirs)
-             (match x
-               (((? keyword?) arg)
-                (values cmd&args (append! x keys) redirs))
-               (((? symbol?) . rest)
-                (values cmd&args keys (cons (normalize-redirect x) redirs)))
-               (_
-                (values (cons x cmd&args) keys redirs))))
-           '() '() '()
-           (reverse xs)))
   (match pf
     (('^)
      (error "empty pipeline"))
@@ -93,7 +57,7 @@
     (process-output p)))
 
 (define (run/port->list reader pf . redirects)
-  (port->list reader (apply run/port pf redirects)))
+  (call-with-port (apply run/port pf redirects) (cut port->list reader <>)))
 
 (define (run/file pf . redirects)
   (receive (out name) (sys-mkstemp
@@ -105,13 +69,13 @@
       name)))
 
 (define (run/string pf . redirects)
-  (port->string (apply run/port pf redirects)))
+  (call-with-port (apply run/port pf redirects) port->string))
 
 (define (run/strings pf . redirects)
   (apply run/port->list read-line pf redirects))
 
 (define (run/sexp pf . redirects)
-  (read (apply run/port pf redirects)))
+  (call-with-port (apply run/port pf redirects) read))
 
 (define (run/sexps pf . redirects)
   (apply run/port->list read pf redirects))
