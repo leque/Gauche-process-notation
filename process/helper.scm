@@ -42,10 +42,3 @@
               (values (cons x cmd&args) keys redirs))))
          '() '() '()
          (reverse xs)))
-
-(define (call-with-port port proc)
-  (unwind-protect
-      (proc port)
-    (begin
-      (close-input-port port)
-      (close-output-port port))))
