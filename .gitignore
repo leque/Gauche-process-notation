@@ -1,0 +1,6 @@
+*.gpd
+*.log
+Makefile
+VERSION
+
+test/output
