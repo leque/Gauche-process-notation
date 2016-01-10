@@ -7,26 +7,28 @@ This library is a thin wrapper to `run-process` procedure in
 
 ## Examples
 
-    (use process.notation)
+```scheme
+(use process.notation)
 
-    ;;; download files
-    (use srfi-1)
+;;; download files
+(use srfi-1)
 
-    (run `(wget ,@(map (pa$ format "http://www.example.com/img/~D.jpg")
-                       (iota 10 1))))
+(run `(wget ,@(map (pa$ format "http://www.example.com/img/~D.jpg")
+                   (iota 10 1))))
 
-    ;;; classical word frequency analysis
-    (define freqs
-      (map (lambda (s)
-             (call-with-input-string s (cut port->list read <>)))
-           (run/strings '(^ (wget -O - "http://example.org/licenses/gpl.txt"
-                                  (:error :null))
-                           (tr -c "A-Za-z" "\n")
-                           (tr "A-Z" "a-z")
-                           (grep -v "^$")
-                           (sort)
-                           (uniq -c)
-                           (sort -rn)))))
+;;; classical word frequency analysis
+(define freqs
+  (map (lambda (s)
+         (call-with-input-string s (cut port->list read <>)))
+       (run/strings '(^ (wget -O - "http://example.org/licenses/gpl.txt"
+                              (:error :null))
+                       (tr -c "A-Za-z" "\n")
+                       (tr "A-Z" "a-z")
+                       (grep -v "^$")
+                       (sort)
+                       (uniq -c)
+                       (sort -rn)))))
+```
 
 ## API
 ### Module: process.notation
@@ -45,18 +47,20 @@ and returns `process-exit-status` of the subprocess.
 
 `pf`'s syntax is:
 
-    pf ::= (cmd-elems ...)
-         | (^ pf0 pf1 ...)
+```
+pf ::= (cmd-elems ...)
+     | (^ pf0 pf1 ...)
 
-    cmd-elems ::= iospec
-                | keyword-arg
-                | obj
+cmd-elems ::= iospec
+            | keyword-arg
+            | obj
 
-    iospec ::= (symbol . rest)
+iospec ::= (symbol . rest)
 
-    keyword-arg ::= (key . rest)
+keyword-arg ::= (key . rest)
 
-    key ::= :error | :directory | :host | :sigmask | :detached
+key ::= :error | :directory | :host | :sigmask | :detached
+```
 
 The first form specifies a command, its arguments, redirects, and
 keywords arguments to `run-process`. `iospec`s are
