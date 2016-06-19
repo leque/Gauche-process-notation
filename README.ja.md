@@ -1,8 +1,12 @@
-# Gauche-process-notation
+# Gauche-process-notation [![Build Status](https://travis-ci.org/leque/Gauche-process-notation.svg?branch=master)](https://travis-ci.org/leque/Gauche-process-notation)
 
 [Scsh](http://www.scsh.net/) の Process Notation 風のプロセス起動構文を
 [Gauche](http://practical-scheme.net/gauche/) で実装したものです。
 Scsh との互換性はありません。
+
+## Requirement
+
+* [Gauche](http://practical-scheme.net/gauche/) 0.9.4 or later
 
 ## 使用例
 

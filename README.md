@@ -1,9 +1,13 @@
-# What's this?
+# Gauche-process-notation [![Build Status](https://travis-ci.org/leque/Gauche-process-notation.svg?branch=master)](https://travis-ci.org/leque/Gauche-process-notation)
 Gauche-process-notation is a process notation library inspired by
 [Scsh](http://www.scsh.net/).
 
 This library is a thin wrapper to `run-process` procedure in
 `gauche.process` module.
+
+## Requirement
+
+* [Gauche](http://practical-scheme.net/gauche/) 0.9.4 or later
 
 ## Examples
 
