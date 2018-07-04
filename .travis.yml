@@ -8,6 +8,7 @@ addons:
 env:
   - GAUCHE_VERSION=0.9.4
   - GAUCHE_VERSION=0.9.5
+  - GAUCHE_VERSION=0.9.6
 before_install:
   - sh .travis-gauche.sh
 script:
